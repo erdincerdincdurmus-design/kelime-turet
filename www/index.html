@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kelime Türet</title>
 <style>
 :root{--bg:#eef3f1;--ink:#14263d;--tile:#1f3a5f;--tilet:#fff;--acc:#f2b134;--mut:#5b6b7a;--card:#fff;--ok:#1c7c54;--bad:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -43,6 +43,13 @@ a.w{color:var(--ink);text-decoration:none;cursor:pointer}a.w:hover{text-decorati
 .row #mix{flex:0 0 100%;order:-1;padding:14px;font-size:1.05rem;background:var(--acc);color:#14263d;border-color:var(--acc)}
 .row button:not(#mix){padding:6px 12px;font-size:.8rem}
 .ans{display:flex;gap:8px;align-items:center;margin-bottom:6px}.ans #answer{flex:1;margin-bottom:0}.ans button{flex:none;border:2px solid var(--tile);background:transparent;color:var(--ink);padding:12px 14px;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer}.ans button.main{background:var(--tile);color:var(--tilet)}
+/* --- Telefon düzeltmeleri --- */
+.ans{flex-wrap:wrap}
+.ans #answer{flex:1 0 100%;order:-1;margin-bottom:4px}
+.ans button{flex:1}
+#answer .t{width:max(28px,min(42px,calc((100% - (var(--n,8) - 1)*6px)/var(--n,8))));height:auto;aspect-ratio:42/50;font-size:clamp(1.05rem,6vw,1.6rem)}
+#tiles{flex-wrap:wrap}
+#tiles button{width:max(30px,min(48px,calc((100% - (var(--n,8) - 1)*7px)/var(--n,8))));height:auto;aspect-ratio:48/58;font-size:clamp(1.1rem,6.5vw,1.7rem)}
 </style>
 </head>
 <body>
@@ -103,7 +110,7 @@ function pickExt(){if(!ext.good){var sc=ext.mains.map(function(m){return[m,build
 var m;do{m=ext.good[Math.floor(Math.random()*ext.good.length)]}while(m===cur&&ext.good.length>1);cur=m;valid=build(m,ext.all,ext.pm)}
 function fmt(s){s=Math.max(s,0);return Math.floor(s/60)+":"+("0"+s%60).slice(-2)}
 function showTime(){document.getElementById("time").textContent=fmt(left);document.getElementById("barfill").style.width=(100*Math.max(left,0)/total)+"%";document.getElementById("bar").className="bar"+(left<=15?" low":"")}
-function tick(){if(over){clearInterval(timer);return}left--;showTime();if(left<=0){clearInterval(timer);over=true;sel=[];var nb=record();msg("Süre doldu! "+score+" puan, "+lastTxt+(nb?" – yeni rekor!":""),"bad");render()}}
+function tick(){if(over){clearInterval(timer);return}left--;showTime();saveGame();if(left<=0){clearInterval(timer);over=true;sel=[];var nb=record();msg("Süre doldu! "+score+" puan, "+lastTxt+(nb?" – yeni rekor!":""),"bad");render()}}
 function startTimer(){clearInterval(timer);total=Math.min(300,Math.max(60,30+5*valid.length));left=total;showTime();timer=setInterval(tick,1000)}
 function loadDict(t,quiet){var s={},all=[],mains=[];
 tr(t).replace(/â/g,"a").replace(/î/g,"i").replace(/û/g,"u").split(/[^a-zçğıöşü]+/).forEach(function(w){if(w.length<4||w.length>12||s[w]||/[qwx]/.test(w))return;s[w]=1;all.push(w);if(w.length>=7)mains.push(w)});
@@ -113,6 +120,7 @@ ext={all:all,pm:all.map(mk),mains:mains};info.textContent="Sözlük yüklendi: "
 if(!quiet){try{localStorage.setItem("kt_dict2",all.join(" "))}catch(e){}newGame()}}
 function msg(t,c){var m=document.getElementById("msg");m.textContent=t;m.className=c||""}
 function render(){
+document.documentElement.style.setProperty("--n",letters.length);saveGame();
 var tl=document.getElementById("tiles");tl.innerHTML="";
 letters.forEach(function(h,i){var b=document.createElement("button");b.textContent=h.toLocaleUpperCase("tr");
 var u=sel.indexOf(i)>-1;b.disabled=over;if(u)b.className="used";b.setAttribute("aria-label",h);b.onclick=function(){if(sel.indexOf(i)>-1)drop(i);else pick(i)};tl.appendChild(b)});
@@ -166,9 +174,22 @@ if(e.key.length===1){var h=tr(e.key);
 for(var i=0;i<letters.length;i++){if(letters[i]===h&&sel.indexOf(i)<0){pick(i);break}}}});
 document.getElementById("dictbtn").onclick=function(){document.getElementById("dictfile").click()};
 document.getElementById("dictfile").onchange=function(){var f=this.files[0];if(!f)return;var r=new FileReader();r.onload=function(){loadDict(r.result)};r.readAsText(f,"utf-8")};
+function saveGame(){try{if(!cur)return;localStorage.setItem("kt_game",JSON.stringify({cur:cur,letters:letters,found:found,over:over,recd:recd,left:left,total:total,lastTxt:lastTxt}))}catch(e){}}
+function restoreGame(){try{var g=JSON.parse(localStorage.getItem("kt_game"));
+if(!g||typeof g.cur!=="string"||!Array.isArray(g.letters)||!Array.isArray(g.found))return false;
+if(g.letters.slice().sort().join("")!==g.cur.split("").sort().join(""))return false;
+var v=build(g.cur,ext.all,ext.pm);if(!v.length)return false;
+if(!g.over&&!(g.left>0))return false;
+cur=g.cur;letters=g.letters;valid=v;
+found=g.found.filter(function(w){return valid.indexOf(w)>-1});
+score=0;found.forEach(function(w){score+=SC[w.length]});
+sel=[];over=!!g.over;recd=!!g.recd;total=g.total||60;left=g.left;lastTxt=g.lastTxt||"";
+clearTimeout(at);clearInterval(timer);showTime();if(!over)timer=setInterval(tick,1000);
+msg(over?"Bu oyun bitmişti. Yeni kelime için çift tıkla":"Oyun kaldığın yerden devam ediyor");render();return true}catch(e){return false}}
+document.addEventListener("visibilitychange",function(){if(document.hidden)saveGame()});
 loadBuiltin();
 try{var sv=localStorage.getItem("kt_dict2");if(sv)loadDict(sv,true)}catch(e){}
-showSt();newGame();
+showSt();if(!restoreGame())newGame();
 </script>
 </body>
 </html>
